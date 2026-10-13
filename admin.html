@@ -20,18 +20,27 @@ label{display:block;font-weight:600;margin-top:8px}
 .tag{display:inline-block;padding:2px 10px;border-radius:99px;font-weight:700;font-size:.85rem;background:var(--acc)}
 .bar{height:22px;border-radius:6px;background:var(--line);overflow:hidden;margin:4px 0 10px}.bar i{display:block;height:100%;background:var(--pri)}
 .ls div{display:flex;justify-content:space-between;gap:10px;padding:5px 0;border-bottom:1px solid var(--line);font-size:.95rem}
+#inv{display:none}
+.v{position:relative;width:419.53pt;height:595.28pt;overflow:hidden;page-break-after:always;break-after:page;background:#fff;color:#000;font-family:"DejaVu Sans",Verdana,Arial,sans-serif}.v:last-child{page-break-after:auto;break-after:auto}
+.t{position:absolute;white-space:nowrap;line-height:1.2;margin:0}.tm{font-family:"Times New Roman",Times,serif;font-weight:700}.b{font-weight:700}.c{transform:translateX(-50%);text-align:center}.o{font-style:italic}
+.ln{position:absolute;left:18.4pt;width:386.7pt;background:#404040}
+.bx{position:absolute;left:143.6pt;width:260.2pt;border:.8pt solid #000;text-align:center;font-size:8.7pt;box-sizing:border-box}
+@page{size:A5 portrait;margin:0}
+@media print{body>*:not(#inv){display:none!important}#inv{display:block!important}}
 </style>
 <script src="config.js"></script>
 </head>
 <body>
 <main id="app"></main>
+<div id="inv"></div>
 <script>
 var st=load(),ok=false,err='';
 function R(){st=load();var a=document.getElementById('app');
  if(!ok){a.innerHTML='<div class="box" style="margin-top:18vh"><input id="pin" type="password" inputmode="numeric" placeholder="PIN" autocomplete="off"><button class="btn" onclick="masuk()">Masuk</button><div class="err" role="alert">'+err+'</div></div>';return}
  var vs=CONFIG.dpt.filter(function(v){return String(v.b)==String(st.bilik)}),used=vs.filter(function(v){return st.used[v.k]}).length,tot=st.votes.length;
  var h='<h1>Panel panitia</h1><div class="box"><p>Status: <span class="tag">'+(st.open?'Pemungutan dibuka':'Pemungutan ditutup')+'</span></p><p class="mut">Bilik '+st.bilik+': '+used+' dari '+vs.length+' pemilih sudah memilih</p><button class="btn" onclick="tog()">'+(st.open?'Tutup pemungutan suara':'Buka pemungutan suara')+'</button></div>';
- h+='<h2>Pengaturan perangkat ini</h2><div class="box"><label>Nama desa</label><input value="'+st.desa.replace(/"/g,'&quot;')+'" onchange="set(\'desa\',this.value)"><div class="row"><div><label>TPS</label><input value="'+st.tps+'" onchange="set(\'tps\',this.value)"></div><div><label>Nomor bilik</label><select onchange="set(\'bilik\',this.value)"><option value="1"'+(st.bilik=='1'?' selected':'')+'>Bilik 1</option><option value="2"'+(st.bilik=='2'?' selected':'')+'>Bilik 2</option></select></div></div></div>';
+ h+='<h2>Pengaturan perangkat ini</h2><div class="box"><label>Nama desa</label><input value="'+st.desa.replace(/"/g,'&quot;')+'" onchange="set(\'desa\',this.value)"><div class="row"><div><label>TPS</label><input value="'+st.tps+'" onchange="set(\'tps\',this.value)"></div><div><label>Nomor bilik</label><select onchange="set(\'bilik\',this.value)"><option value="1"'+(st.bilik=='1'?' selected':'')+'>Bilik 1</option><option value="2"'+(st.bilik=='2'?' selected':'')+'>Bilik 2</option></select></div></div><label>Hari/Tanggal pemungutan</label><input value="'+st.tanggal+'" onchange="set(\'tanggal\',this.value)"><label>Pukul</label><input value="'+st.pukul+'" onchange="set(\'pukul\',this.value)"></div>';
+ h+='<h2>Undangan pemilih (simulasi)</h2><div class="box"><p class="mut">Satu halaman A5 per pemilih. Pada dialog cetak pilih printer atau Simpan sebagai PDF.</p><div class="row"><button class="btn" onclick="cetakInv(\'1\')">Buat undangan Bilik 1</button><button class="btn" onclick="cetakInv(\'2\')">Buat undangan Bilik 2</button></div></div>';
  h+='<h2>Hasil rekapitulasi</h2><div class="box">';
  if(st.open)h+='<p class="mut">Hasil tampil setelah pemungutan ditutup.</p>';
  else if(!tot)h+='<p class="mut">Belum ada suara masuk.</p>';
@@ -44,6 +53,28 @@ function masuk(){if(document.getElementById('pin').value===CONFIG.pin){ok=true;e
 function tog(){st=load();st.open=!st.open;save(st);R()}
 function set(k,v){st=load();st[k]=(v+'').trim()||st[k];save(st);R()}
 function rst(){if(confirm('Hapus semua suara dan status pemilih di perangkat ini?')){st=load();st.used={};st.votes=[];save(st);R()}}
+function T(x,top,sz,txt,cls,col,r){return '<div class="t '+(cls||'')+'" style="'+(r!==undefined?'right:'+r:'left:'+x)+'pt;top:'+(top-sz*0.12).toFixed(1)+'pt;font-size:'+sz+'pt;'+(col?'color:'+col:'')+'">'+txt+'</div>'}
+function qrsvg(q){var n=Math.round(Math.sqrt(q.length)),p='';for(var i=0;i<q.length;i++)if(q[i]=='1')p+='M'+(i%n)+' '+Math.floor(i/n)+'h1v1h-1z';return '<svg style="position:absolute;left:16.4pt;top:83.3pt;width:91.1pt;height:91.1pt" viewBox="0 0 '+n+' '+n+'" shape-rendering="crispEdges"><path d="'+p+'"/></svg>'}
+function inv(v){var D=st.desa.toUpperCase(),d=new Date(),tc=('0'+d.getDate()).slice(-2)+'/'+('0'+(d.getMonth()+1)).slice(-2)+'/'+d.getFullYear(),dots='. . . . . . . , . . . . . . . . . . . . . . . . 2026';
+ var rows=[['Hari/Tanggal',st.tanggal],['Pukul',st.pukul],['Nomor TPS','TPS '+st.tps],['Alamat TPS','Halaman Kantor Desa '+st.desa],['Nomor Bilik Suara','Bilik Suara Nomor '+v.b]];
+ var h='<div class="v"><img src="logo.png" alt="" style="position:absolute;left:16.4pt;top:16.4pt;width:43.3pt;height:46.5pt">'
+ +T(209.76,22.1,12.5,'SURAT UNDANGAN','tm c')+T(209.76,33.9,12.5,'SIMULASI PEMUNGUTAN SUARA','tm c')+T(209.76,45.2,12.5,'KEPADA PEMILIH','tm c')
+ +T(365.2,27.8,9,'No Urut DPT','c')+T(365.2,41.5,13,v.no,'b c')
+ +'<div class="ln" style="top:68.2pt;height:1.2pt"></div><div class="ln" style="top:70.8pt;height:.5pt"></div>'+qrsvg(v.q)
+ +'<div class="bx" style="top:90.5pt;height:31.4pt;line-height:31.4pt;border-color:red;color:red">SURAT UNDANGAN INI BERSIFAT RAHASIA</div>'
+ +'<div class="bx" style="top:129.1pt;height:30.2pt;line-height:30.2pt">Tunjukan QRcode berikut saat akan memilih</div>'
+ +T(22.3,190,8.3,'Bersama ini diberitahukan bahwa Panitia Pemilihan mengundang Saudara/i')
+ +T(22.3,203.8,8.3,'<b>'+v.n+'</b> untuk memberikan suara pada pemilihan:')
+ +T(22.3,221.5,8.3,'<b>SIMULASI PEMILIHAN KEPALA DESA '+D+'</b> yang akan dilaksanakan pada:');
+ rows.forEach(function(r,i){var tp=247+18.04*i;h+=T(24.9,tp,8.3,r[0])+T(120.5,tp,8.3,':')+T(136.5,tp,8.3,r[1])});
+ ['Catatan : Surat Undangan ini beserta KTP Elektronik harus dibawa pada saat pencoblosan','dan tidak boleh diwakilkan. Surat Undangan ini tidak boleh disebarluaskan, duplikasi atau','diperlihatkan kepada pihak yang tidak berkepentingan.'].forEach(function(l,i){h+=T(22.3,342.5+14.4*i,7.3,l)});
+ h+=T(24.9,402.4,8.3,dots)+T(0,402.4,8.3,dots,'',0,37.13)
+ +T(105.4,416.8,8.3,'Yang Menerima,','c')+T(333.9,416.8,8.3,'PANITIA PEMILIHAN','c')+T(333.9,432.5,8.3,'Ketua,','c')
+ +T(105.4,477.1,8.3,v.n,'c')+T(333.9,477.1,8.3,'-------------------------------','c')
+ +'<div style="position:absolute;left:24.9pt;top:519.8pt;width:114.1pt;height:65.6pt;border:.8pt solid #000;box-sizing:border-box"></div>';
+ ['Letakan posisi tangan','ditengah-tengah ujung','bawah persis seperti','pada gambar untuk','memudahkan proses','scan QRcode'].forEach(function(l,i){h+=T(81.95,524.6+10.8*i,7.6,l,'c')});
+ return h+'<img src="jempol.png" alt="" style="position:absolute;left:185.5pt;top:519.8pt;width:55.7pt;height:73.4pt">'+T(280.6,553.1,8.3,'Cetakan ke: 1','o')+T(280.6,567.3,7.6,'Tgl cetak: '+tc,'b o')+'</div>'}
+function cetakInv(b){st=load();document.getElementById('inv').innerHTML=CONFIG.dpt.filter(function(v){return String(v.b)==b}).map(inv).join('');setTimeout(function(){window.print()},600)}
 setInterval(function(){if(ok&&!document.activeElement.matches('input,select'))R()},4000);
 R();
 </script>
