@@ -37,6 +37,7 @@ body{background:linear-gradient(160deg,#f4f2ea,#e4eee7);color:var(--ink);font:16
 .done{height:100dvh;display:grid;place-content:center;text-align:center;background:var(--pri);color:#fff;padding:20px}
 .done i{font-style:normal;width:clamp(80px,18vmin,140px);height:clamp(80px,18vmin,140px);border-radius:50%;background:#fff;color:var(--pri);display:grid;place-items:center;font-size:clamp(3rem,10vmin,5.5rem);font-weight:800;margin:0 auto 18px}
 .done h1{margin:0 0 6px;font-size:clamp(1.6rem,5vmin,3rem)}.done p{margin:0;opacity:.9;font-size:clamp(1rem,2.6vmin,1.4rem)}
+.pbtn{position:absolute;right:14px;bottom:64px;z-index:5;border:0;border-radius:99px;padding:10px 16px;font:700 .9rem inherit;font-family:inherit;background:rgba(255,255,255,.92);color:#16231d;cursor:pointer}.pbtn.ok{background:var(--acc)}
 #print{display:none;font-family:monospace;text-align:center;color:#000}
 @page{size:58mm auto;margin:2mm}
 @media print{body>*:not(#print){display:none!important}#print{display:block!important}html,body{overflow:visible;height:auto}}
@@ -54,7 +55,7 @@ function hd(){return '<div class="hd">'+judul()+'<span>DESA '+st.desa.toUpperCas
 function kart(c,i,on,act){return '<button class="kart'+(on?' on':'')+'" '+(act?'onclick="pick('+i+')"':'')+'><div class="foto" style="background:'+c.bg+'"><span>'+c.e+'</span></div><span class="no">'+(i+1)+'</span><i class="ck">&#10003;</i><div class="nm">'+c.n+'</div></button>'}
 function render(){
  var a=document.getElementById('app');
- if(scr=='scan'){a.innerHTML='<div class="scan"><video id="cam" playsinline muted autoplay></video><div class="frame" onclick="startCam()"></div><div class="hint"><b>'+judul()+' DESA '+st.desa.toUpperCase()+'</b><span>TPS '+st.tps+' / Bilik '+st.bilik+'</span><span>Tunjukkan QR undangan ke kotak. Sentuh kotak jika kamera belum menyala.</span></div><div class="err" role="alert">'+err+'</div></div>';
+ if(scr=='scan'){a.innerHTML='<div class="scan"><video id="cam" playsinline muted autoplay></video><div class="frame" onclick="startCam()"></div><div class="hint"><b>'+judul()+' DESA '+st.desa.toUpperCase()+'</b><span>TPS '+st.tps+' / Bilik '+st.bilik+'</span><span>Tunjukkan QR undangan ke kotak. Sentuh kotak jika kamera belum menyala.</span></div><button id="pbtn" class="pbtn'+(prn?' ok':'')+'" onclick="sambungPrinter()">'+pLabel()+'</button><div class="err" role="alert">'+err+'</div></div>';
   var ok=0;try{ok=localStorage.getItem('camok')}catch(e){}if(ok)setTimeout(startCam,150);return}
  if(scr=='vote'){a.innerHTML='<div class="pg">'+hd()+'<p class="ins">Selamat datang <b>'+vt.n+'</b>, silakan pilih calon kepala desa pilihan Anda.</p><div class="cands">'+CONFIG.cands.map(function(c,i){return kart(c,i,sel===i,1)}).join('')+'</div><button class="btn" style="visibility:'+(sel===null?'hidden':'visible')+'" onclick="scr=\'confirm\';render()">Pilih Kandidat Ini</button></div>';return}
  if(scr=='confirm'){a.innerHTML='<div class="pg"><div class="ch"><h1>Konfirmasi Pemilihan</h1><p class="q">Apa Anda yakin akan memilih kandidat ini?</p></div><div class="one">'+kart(CONFIG.cands[sel],sel,true,0)+'</div><div class="row"><button class="btn red" onclick="sel=null;scr=\'vote\';render()">Ulangi</button><button class="btn" onclick="kirim()">Pilih</button></div></div>';return}
@@ -89,7 +90,58 @@ function kirim(){
  rc={id:id,t:t,no:sel+1,n:CONFIG.cands[sel].n};scr='done';render();
  setTimeout(cetak,200);setTimeout(selesai,3000);
 }
-function cetak(){
+var prn=null,prnName='';
+function pLabel(){return prn?'Printer: '+prnName:'Sambung Printer'}
+function pStatus(){var b=document.getElementById('pbtn');if(b){b.textContent=pLabel();b.className='pbtn'+(prn?' ok':'')}}
+function pakaiUsb(d,ep){prn=function(b){return d.transferOut(ep,b)};prnName=d.productName||'USB';pStatus()}
+async function bukaUsb(d){
+ await d.open();if(!d.configuration)await d.selectConfiguration(1);
+ var ifc=d.configuration.interfaces.find(function(i){return i.alternates[0].endpoints.some(function(e){return e.direction=='out'})});
+ await d.claimInterface(ifc.interfaceNumber);
+ pakaiUsb(d,ifc.alternates[0].endpoints.find(function(e){return e.direction=='out'}).endpointNumber);
+}
+async function sambungPrinter(){
+ try{
+  if(navigator.usb){
+   var d=await navigator.usb.requestDevice({filters:[]});await bukaUsb(d);return;
+  }
+ }catch(e){}
+ try{
+  if(navigator.bluetooth){
+   var S='000018f0-0000-1000-8000-00805f9b34fb';
+   var dv=await navigator.bluetooth.requestDevice({acceptAllDevices:true,optionalServices:[S]});
+   var sv=await(await dv.gatt.connect()).getPrimaryService(S);
+   var ch=(await sv.getCharacteristics()).find(function(c){return c.properties.write||c.properties.writeWithoutResponse});
+   prn=async function(b){
+    if(!dv.gatt.connected){sv=await(await dv.gatt.connect()).getPrimaryService(S);ch=(await sv.getCharacteristics()).find(function(c){return c.properties.write||c.properties.writeWithoutResponse})}
+    for(var i=0;i<b.length;i+=100){var k=b.slice(i,i+100);if(ch.properties.writeWithoutResponse)await ch.writeValueWithoutResponse(k);else await ch.writeValue(k)}
+   };
+   prnName=dv.name||'Bluetooth';pStatus();return;
+  }
+ }catch(e){}
+ prn=null;setErr('Printer tidak tersambung. Gunakan Chrome/Edge (HTTPS) dan pilih printer.');
+}
+async function autoUsb(){
+ try{if(!navigator.usb)return;var l=await navigator.usb.getDevices();if(l.length)await bukaUsb(l[0])}catch(e){prn=null}
+}
+function escpos(r){
+ var enc=new TextEncoder(),o=[0x1B,0x40];
+ function tx(t){var b=enc.encode(t);for(var i=0;i<b.length;i++)o.push(b[i])}
+ function al(n){o.push(0x1B,0x61,n)}
+ function bd(n){o.push(0x1B,0x45,n)}
+ function sz(n){o.push(0x1D,0x21,n)}
+ var gr='--------------------------------\n';
+ al(1);bd(1);tx('SIMULASI PEMILIHAN\nKEPALA DESA\n');bd(0);
+ tx('DESA '+st.desa.toUpperCase()+'\n');
+ bd(1);tx('TPS '+st.tps+' / BILIK '+st.bilik+'\n');bd(0);
+ tx(r.t+'\nResi: '+r.id+'\n'+gr+'PILIHAN\n');
+ sz(0x11);bd(1);tx('No. '+r.no+'\n');sz(0);tx(r.n+'\n');bd(0);
+ tx(gr+'Bukti suara tercatat\n\n\n\n');
+ o.push(0x1D,0x56,0x42,0x00);
+ return new Uint8Array(o);
+}
+async function cetak(){
+ if(prn){try{await prn(escpos(rc));return}catch(e){prn=null;pStatus()}}
  var p=document.getElementById('print');
  p.innerHTML='<h3>SIMULASI PEMILIHAN KEPALA DESA</h3><p>DESA '+st.desa.toUpperCase()+'</p><p><b>TPS '+st.tps+' / BILIK '+st.bilik+'</b></p><p>'+rc.t+'</p><p>Resi: '+rc.id+'</p><p>--------------------</p><p>PILIHAN</p><h2>No. '+rc.no+'</h2><h3>'+rc.n+'</h3><p>--------------------</p><p>Bukti suara tercatat</p>';
  window.print();
@@ -98,7 +150,7 @@ function selesai(){if(scr!='done'&&scr!='vote'&&scr!='confirm')return;sess=null;
 function fs(){if((window.matchMedia&&matchMedia('(display-mode: standalone)').matches)||navigator.standalone)return;var d=document.documentElement;if(document.fullscreenElement||!d.requestFullscreen)return;try{d.requestFullscreen().then(function(){try{var q=screen.orientation.lock('landscape');q&&q.catch&&q.catch(function(){})}catch(e){}}).catch(function(){})}catch(e){}}
 document.addEventListener('pointerdown',fs);
 if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(function(){});
-render();
+render();autoUsb();
 </script>
 </body>
 </html>
